@@ -33,9 +33,6 @@ This repository accompanies our paper <strong>"WavAlign: Enhancing Intelligence 
 
 Project page: <a href="https://speechrl.github.io/">speechrl.github.io</a>
 
-<p align="center">
-  <sub>This release focuses on the training pipeline. Model weights and curated data artifacts will be added incrementally.</sub>
-</p>
 
 ## News
 
