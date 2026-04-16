@@ -1,0 +1,11 @@
+torch
+transformers>=4.44
+trl
+accelerate
+datasets
+deepspeed
+torchaudio
+soundfile
+requests
+scipy
+packaging
