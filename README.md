@@ -58,13 +58,6 @@ This repository currently releases the **core post-training code** used for:
 - offline and online DPO training
 - DPO pair construction from scored multi-sample generations
 
-The release intentionally excludes:
-
-- model weights
-- full training datasets
-- private data preprocessing pipelines tied to internal storage layouts
-- experiment logs, caches, and analysis artifacts
-
 ## Code Release
 
 ```text
