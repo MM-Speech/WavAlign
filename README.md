@@ -1,23 +1,26 @@
 # WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training
 
-<p align="center"><strong>Findings of ACL 2026</strong></p>
+<p align="center">
+  <strong>Findings of ACL 2026</strong><br/>
+  <em>Adaptive post-training for end-to-end spoken dialogue models</em>
+</p>
 
 <p align="center">
   <a href="https://speechrl.github.io/">
-    <img alt="Project Page" src="https://img.shields.io/badge/Project-Page-0A7EA4?style=for-the-badge">
+    <img alt="Project Page" src="https://img.shields.io/badge/Project-Page-0F766E?style=for-the-badge&logo=googlechrome&logoColor=white">
   </a>
   <a href="#code-release">
-    <img alt="Code Release" src="https://img.shields.io/badge/Code-Release-111111?style=for-the-badge">
+    <img alt="Code Release" src="https://img.shields.io/badge/Code-Release-1F2937?style=for-the-badge&logo=github&logoColor=white">
   </a>
   <a href="#citation">
-    <img alt="Citation" src="https://img.shields.io/badge/Citation-BibTeX-4B7BE5?style=for-the-badge">
+    <img alt="Citation" src="https://img.shields.io/badge/Citation-BibTeX-1D4ED8?style=for-the-badge&logo=bookstack&logoColor=white">
   </a>
 </p>
 
 <p align="center">
-  <img alt="Findings ACL 2026" src="https://img.shields.io/badge/Findings-ACL%202026-CB6D51?style=flat-square">
-  <img alt="Model Coming Soon" src="https://img.shields.io/badge/Model-Coming%20Soon-8A9A5B?style=flat-square">
-  <img alt="Dataset Coming Soon" src="https://img.shields.io/badge/Dataset-Coming%20Soon-BD8B00?style=flat-square">
+  <img alt="Status" src="https://img.shields.io/badge/Status-Code%20Release-374151?style=flat-square">
+  <img alt="Venue" src="https://img.shields.io/badge/Venue-Findings%20ACL%202026-B45309?style=flat-square">
+  <img alt="Task" src="https://img.shields.io/badge/Task-Spoken%20Dialogue-0F766E?style=flat-square">
 </p>
 
 <p align="center">
@@ -29,6 +32,10 @@ WavAlign is a modality-aware post-training recipe for end-to-end spoken dialogue
 This repository accompanies our paper <strong>"WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training"</strong>, accepted to <strong>Findings of ACL 2026</strong>.
 
 Project page: <a href="https://speechrl.github.io/">speechrl.github.io</a>
+
+<p align="center">
+  <sub>This release focuses on the training pipeline. Model weights and curated data artifacts will be added incrementally.</sub>
+</p>
 
 ## News
 
