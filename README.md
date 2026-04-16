@@ -1,20 +1,34 @@
-# WavAlign
+# WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training
+
+<p align="center"><strong>Findings of ACL 2026</strong></p>
+
+<p align="center">
+  <a href="https://speechrl.github.io/">
+    <img alt="Project Page" src="https://img.shields.io/badge/Project-Page-0A7EA4?style=for-the-badge">
+  </a>
+  <a href="#code-release">
+    <img alt="Code Release" src="https://img.shields.io/badge/Code-Release-111111?style=for-the-badge">
+  </a>
+  <a href="#citation">
+    <img alt="Citation" src="https://img.shields.io/badge/Citation-BibTeX-4B7BE5?style=for-the-badge">
+  </a>
+</p>
+
+<p align="center">
+  <img alt="Findings ACL 2026" src="https://img.shields.io/badge/Findings-ACL%202026-CB6D51?style=flat-square">
+  <img alt="Model Coming Soon" src="https://img.shields.io/badge/Model-Coming%20Soon-8A9A5B?style=flat-square">
+  <img alt="Dataset Coming Soon" src="https://img.shields.io/badge/Dataset-Coming%20Soon-BD8B00?style=flat-square">
+</p>
 
 <p align="center">
   <img src="assets/method.png" alt="WavAlign method overview" width="88%">
 </p>
 
-<p align="center">
-  <a href="https://speechrl.github.io/">Project Page</a> |
-  <a href="#code-release">Code Release</a> |
-  <a href="#citation">Citation</a>
-</p>
+WavAlign is a modality-aware post-training recipe for end-to-end spoken dialogue models that improves semantic intelligence while preserving speech naturalness and expressiveness.
 
-WavAlign is a post-training recipe for end-to-end spoken dialogue models that improves semantic intelligence while preserving speech naturalness and expressiveness.
+This repository accompanies our paper <strong>"WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training"</strong>, accepted to <strong>Findings of ACL 2026</strong>.
 
-Our paper **"WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training"** has been accepted to **Findings of ACL 2026**.
-
-Project page: https://speechrl.github.io/
+Project page: <a href="https://speechrl.github.io/">speechrl.github.io</a>
 
 ## News
 
@@ -29,11 +43,13 @@ WavAlign is built around a simple principle from the paper:
 
 - Use preference optimization where the signal is most reliable: the semantic text channel.
 - Keep speech generation anchored with supervised targets to avoid acoustic drift.
+- Dynamically regulate the RL/SFT mixture using rollout reward quality and discriminability.
 - Support both online RL-style optimization and offline DPO-style optimization under the same mixed text-speech setup.
 
 This repository currently releases the **core post-training code** used for:
 
 - masked RL + SFT training for spoken dialogue models
+- adaptive RL/SFT mixing with EMA-smoothed rollout gating
 - text-token / speech-token masking controls
 - offline and online DPO training
 - DPO pair construction from scored multi-sample generations
@@ -121,6 +137,8 @@ export WAVALIGN_REWARD_API_KEY=...
 bash scripts/train_rl_sft_masked.sh plus-vanilla
 ```
 
+The default RL launcher enables the paper-style adaptive mixing controller. To fall back to fixed mixing, pass `--adaptive_mixing False`.
+
 Offline DPO:
 
 ```bash
@@ -144,4 +162,3 @@ python utils/dpo_pair_builder.py \
 - The current release focuses on the training recipe and trainer implementation.
 - Project page, paper metadata, and future artifact updates will be maintained at https://speechrl.github.io/
 - Checkpoints and datasets will be added in a later release.
-

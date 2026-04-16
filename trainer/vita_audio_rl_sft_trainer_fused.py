@@ -93,7 +93,14 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
         rl_loss = self._compute_rl_loss_from_logits(model, rl_context, logps, policy_logits=logits)
 
         # 6) Combine losses
-        total_loss = self.rl_loss_weight * rl_loss + self.sft_loss_weight * sft_loss
+        if hasattr(self, "get_effective_mix_weights"):
+            mix_weights = self.get_effective_mix_weights()
+            effective_rl_weight = mix_weights["rl_weight"]
+            effective_sft_weight = mix_weights["sft_weight"]
+        else:
+            effective_rl_weight = float(self.rl_loss_weight)
+            effective_sft_weight = float(self.sft_loss_weight)
+        total_loss = effective_rl_weight * rl_loss + effective_sft_weight * sft_loss
 
         # 7) Metrics (global means)
         rl_loss_g = self.accelerator.gather_for_metrics(rl_loss.detach()).mean().item()
@@ -103,8 +110,24 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
         self._metrics["sft_loss"].append(sft_loss_g)
         self._metrics["combined_loss"].append(total_loss_g)
         self._metrics["num_samples"].append(self.accelerator.gather_for_metrics(torch.tensor(len(inputs), device=total_loss.device, dtype=torch.float32)).mean().item())
+        self._metrics["effective_rl_weight"].append(effective_rl_weight)
+        self._metrics["effective_sft_weight"].append(effective_sft_weight)
+        if hasattr(self, "_last_adaptive_stats") and self._last_adaptive_stats is not None:
+            self._metrics["adaptive_lambda_raw"].append(self._last_adaptive_stats["lambda_raw"])
+            self._metrics["adaptive_lambda"].append(self._last_adaptive_stats["lambda"])
+            self._metrics["adaptive_reward_gate"].append(self._last_adaptive_stats["reward_gate"])
+            self._metrics["adaptive_info_gate"].append(self._last_adaptive_stats["info_gate"])
+            self._metrics["adaptive_reward_max"].append(self._last_adaptive_stats["reward_max"])
+            self._metrics["adaptive_reward_var"].append(self._last_adaptive_stats["reward_var"])
 
-        logger.info(f"[Fused] GRPO: {rl_loss_g:.4f}, SFT: {sft_loss_g:.4f}, Combined: {total_loss_g:.4f}")
+        logger.info(
+            "[Fused] GRPO: %.4f, SFT: %.4f, Combined: %.4f, mix=(%.3f RL / %.3f SFT)",
+            rl_loss_g,
+            sft_loss_g,
+            total_loss_g,
+            effective_rl_weight,
+            effective_sft_weight,
+        )
 
         return total_loss
 

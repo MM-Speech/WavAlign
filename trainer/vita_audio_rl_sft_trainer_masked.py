@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -43,6 +43,11 @@ class VitaAudioRLSFTTrainerMasked(VitaAudioRLSFTTrainerFused):
         rl_text_weight: float = 1.0,
         sft_speech_weight: float = 1.0,
         sft_text_weight: float = 1.0,
+        adaptive_mixing: bool = True,
+        adaptive_lambda_max: float = 0.8,
+        adaptive_ema_alpha: float = 0.9,
+        adaptive_gate_slope: float = 5.0,
+        adaptive_reward_threshold: float = 3.0,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -55,6 +60,13 @@ class VitaAudioRLSFTTrainerMasked(VitaAudioRLSFTTrainerFused):
         self.rl_text_weight = float(rl_text_weight)
         self.sft_speech_weight = float(sft_speech_weight)
         self.sft_text_weight = float(sft_text_weight)
+        self.adaptive_mixing = bool(adaptive_mixing)
+        self.adaptive_lambda_max = float(adaptive_lambda_max)
+        self.adaptive_ema_alpha = float(adaptive_ema_alpha)
+        self.adaptive_gate_slope = float(adaptive_gate_slope)
+        self.adaptive_reward_threshold = float(adaptive_reward_threshold)
+        self._adaptive_lambda_state: Optional[float] = None
+        self._last_adaptive_stats: Optional[Dict[str, float]] = None
 
     # --- token-type masking helpers ---
     def _get_token_type_masks(self, completion_ids: torch.Tensor, completion_masks: torch.Tensor):
@@ -191,6 +203,12 @@ class VitaAudioRLSFTTrainerMasked(VitaAudioRLSFTTrainerFused):
         total_loss = 0.0
         batch_size = rl.total_rows // self.args.num_generations
         num_generations = self.args.num_generations
+        adaptive_raw_values: List[float] = []
+        adaptive_values: List[float] = []
+        adaptive_reward_gates: List[float] = []
+        adaptive_info_gates: List[float] = []
+        adaptive_reward_maxes: List[float] = []
+        adaptive_reward_vars: List[float] = []
 
         for sample_idx in range(batch_size):
             st = sample_idx * num_generations
@@ -252,8 +270,17 @@ class VitaAudioRLSFTTrainerMasked(VitaAudioRLSFTTrainerFused):
             rewards_f *= self.reward_weights.to(model.device).unsqueeze(0)
             rewards = rewards_f.sum(dim=1)
             grouped_mean = rewards.mean()
-            grouped_std = rewards.std() + 1e-4
+            grouped_std = rewards.std(unbiased=False) + 1e-4
             adv = (rewards - grouped_mean) / grouped_std
+
+            if self.adaptive_mixing:
+                adaptive_stats = self._compute_adaptive_lambda_stats(rewards)
+                adaptive_raw_values.append(adaptive_stats["lambda_raw"])
+                adaptive_values.append(adaptive_stats["lambda"])
+                adaptive_reward_gates.append(adaptive_stats["reward_gate"])
+                adaptive_info_gates.append(adaptive_stats["info_gate"])
+                adaptive_reward_maxes.append(adaptive_stats["reward_max"])
+                adaptive_reward_vars.append(adaptive_stats["reward_var"])
 
             # Per-token KL
             per_token_kl = torch.exp(completion_ref_logps - completion_model_logps) - (
@@ -349,4 +376,59 @@ class VitaAudioRLSFTTrainerMasked(VitaAudioRLSFTTrainerFused):
                 kl_overall = ((per_token_kl * sample_completion_masks).sum(1) / sample_completion_masks.sum(1).clamp(min=1)).mean()
                 self._metrics["kl"].append(self.accelerator.gather_for_metrics(kl_overall).mean().item())
 
+        if self.adaptive_mixing and adaptive_values:
+            mean_lambda = sum(adaptive_values) / len(adaptive_values)
+            self._adaptive_lambda_state = mean_lambda
+            self._last_adaptive_stats = {
+                "lambda_raw": sum(adaptive_raw_values) / len(adaptive_raw_values),
+                "lambda": mean_lambda,
+                "reward_gate": sum(adaptive_reward_gates) / len(adaptive_reward_gates),
+                "info_gate": sum(adaptive_info_gates) / len(adaptive_info_gates),
+                "reward_max": sum(adaptive_reward_maxes) / len(adaptive_reward_maxes),
+                "reward_var": sum(adaptive_reward_vars) / len(adaptive_reward_vars),
+            }
+        else:
+            self._last_adaptive_stats = None
+
         return total_loss / max(batch_size, 1)
+
+    def get_effective_mix_weights(self) -> Dict[str, float]:
+        rl_weight = float(self.rl_loss_weight)
+        if self.adaptive_mixing and self._last_adaptive_stats is not None:
+            rl_weight = float(self._last_adaptive_stats["lambda"])
+        rl_weight = max(0.0, min(1.0, rl_weight))
+        return {
+            "rl_weight": rl_weight,
+            "sft_weight": 1.0 - rl_weight,
+        }
+
+    def _compute_adaptive_lambda_stats(self, rewards: torch.Tensor) -> Dict[str, float]:
+        rewards_detached = rewards.detach()
+        reward_max = float(rewards_detached.max().item())
+        reward_var = float(rewards_detached.var(unbiased=False).item())
+        info_gate = max(0.0, min(1.0, reward_var / 4.0))
+        reward_gate = float(
+            torch.sigmoid(
+                torch.tensor(
+                    self.adaptive_gate_slope * (reward_max - self.adaptive_reward_threshold),
+                    device=rewards.device,
+                )
+            ).item()
+        )
+        lambda_raw = float(self.adaptive_lambda_max * reward_gate * info_gate)
+        if self._adaptive_lambda_state is None:
+            lambda_value = lambda_raw
+        else:
+            lambda_value = float(
+                (1.0 - self.adaptive_ema_alpha) * lambda_raw
+                + self.adaptive_ema_alpha * self._adaptive_lambda_state
+            )
+        lambda_value = max(0.0, min(self.adaptive_lambda_max, lambda_value))
+        return {
+            "reward_max": reward_max,
+            "reward_var": reward_var,
+            "reward_gate": reward_gate,
+            "info_gate": info_gate,
+            "lambda_raw": lambda_raw,
+            "lambda": lambda_value,
+        }

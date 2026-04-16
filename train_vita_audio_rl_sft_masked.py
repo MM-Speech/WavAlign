@@ -86,6 +86,11 @@ class VitaAudioRLSFTMaskedArguments:
 
     rl_loss_weight: float = 0.7
     sft_loss_weight: float = 0.3
+    adaptive_mixing: bool = True
+    adaptive_lambda_max: float = 0.8
+    adaptive_ema_alpha: float = 0.9
+    adaptive_gate_slope: float = 5.0
+    adaptive_reward_threshold: float = 3.0
     sft_learning_rate: Optional[float] = None
     convert_data: bool = False
     input_data_path: Optional[str] = None
@@ -281,6 +286,11 @@ def main() -> None:
         rl_loss_weight=args.rl_loss_weight,
         sft_loss_weight=args.sft_loss_weight,
         skip_steps=args.skip_steps,
+        adaptive_mixing=args.adaptive_mixing,
+        adaptive_lambda_max=args.adaptive_lambda_max,
+        adaptive_ema_alpha=args.adaptive_ema_alpha,
+        adaptive_gate_slope=args.adaptive_gate_slope,
+        adaptive_reward_threshold=args.adaptive_reward_threshold,
         rl_token_type=args.rl_token_type,
         sft_token_type=args.sft_token_type,
         include_audio_boundaries=args.include_audio_boundaries,
@@ -291,8 +301,9 @@ def main() -> None:
     )
 
     logger.info(
-        "Starting training (masked): variant=%s, rl_weight=%.3f, sft_weight=%.3f, rl_tokens=%s, sft_tokens=%s",
+        "Starting training (masked): variant=%s, adaptive=%s, rl_weight=%.3f, sft_weight=%.3f, rl_tokens=%s, sft_tokens=%s",
         args.model_variant,
+        args.adaptive_mixing,
         args.rl_loss_weight,
         args.sft_loss_weight,
         args.rl_token_type,
