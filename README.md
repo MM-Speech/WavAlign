@@ -159,3 +159,18 @@ python utils/dpo_pair_builder.py \
 - The current release focuses on the training recipe and trainer implementation.
 - Project page, paper metadata, and future artifact updates will be maintained at https://speechrl.github.io/
 - Checkpoints and datasets will be added in a later release.
+
+## Citation
+
+If you find this work useful, please cite:
+
+```bibtex
+@misc{chen2026wavalignenhancingintelligenceexpressiveness,
+      title={WavAlign: Enhancing Intelligence and Expressiveness in Spoken Dialogue Models via Adaptive Hybrid Post-Training}, 
+      author={Yifu Chen and Shengpeng Ji and Qian Chen and Tianle Liang and Yangzhuo Li and Ziqing Wang and Wen Wang and Jingyu Lu and Haoxiao Wang and Xueyi Pu and Fan Zhuo and Zhou Zhao},
+      year={2026},
+      eprint={2604.14932},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2604.14932}, 
+}
