@@ -76,7 +76,7 @@ WavAlign/
 
 ## Installation
 
-This code depends on a local checkout of the upstream `VITA-Audio` codebase.
+This code depends on a local checkout of the `VITA-Audio` codebase.
 
 ```bash
 git clone <this-repo>
@@ -89,15 +89,16 @@ For RL training with API-based reward scoring, also set:
 
 ```bash
 export WAVALIGN_REWARD_API_KEY=...
-export WAVALIGN_REWARD_API_BASE=...
+export WAVALIGN_REWARD_API_BASE=...  # full chat/completions URL
 export WAVALIGN_REWARD_MODEL=...
 ```
 
-The reward client expects an OpenAI-compatible multimodal chat endpoint.
+The reward client expects an OpenAI-compatible multimodal chat endpoint, and
+`WAVALIGN_REWARD_API_BASE` should point to the full request URL used by that service.
 
 ## Data Format
 
-The public release uses a simple JSONL schema. See `examples/sample_rl_sft.jsonl` and `examples/sample_dpo.jsonl`.
+The training pipeline uses a simple JSONL schema. See `examples/sample_rl_sft.jsonl` and `examples/sample_dpo.jsonl`.
 
 RL + SFT training sample:
 
@@ -156,9 +157,9 @@ python utils/dpo_pair_builder.py \
 
 ## Notes
 
-- The current release focuses on the training recipe and trainer implementation.
+- This repository focuses on the training recipe and trainer implementation.
 - Project page, paper metadata, and future artifact updates will be maintained at https://speechrl.github.io/
-- Checkpoints and datasets will be added in a later release.
+- Checkpoints and datasets are managed separately from this repository.
 
 ## Citation
 

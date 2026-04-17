@@ -224,7 +224,7 @@ def maybe_convert_dataset(args: VitaAudioRLSFTMaskedArguments) -> None:
     if not args.convert_data:
         return
     raise ValueError(
-        "Dataset conversion utilities are not part of the public release. "
+        "Dataset conversion utilities are not included in this repository. "
         "Please prepare a JSONL file following the schema documented in README.md."
     )
 

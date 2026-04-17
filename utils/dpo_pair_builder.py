@@ -16,7 +16,7 @@ Output schema (per line, JSONL):
   - "messages", "audios"
   - "sft_target_text", "sft_target_audio"     # chosen (mapped to SFT target)
   - "rejected_text", "rejected_audio"
-  - metadata: chosen/rejected scores, keys, score_gap, original id fields
+  - metadata: chosen/rejected scores, keys, score_gap, source id fields
 """
 
 from __future__ import annotations
@@ -204,7 +204,7 @@ def build_pair_record(
         "source_dataset": (sample.get("original_sample") or {}).get("source_dataset"),
     }
 
-    # Keep a trace of the original supervised target (often human/curated) for auditing.
+    # Keep a trace of the existing supervised target for auditing.
     if chosen_source != "sft_target":
         record["orig_sft_target_text"] = sample.get("sft_target_text")
         record["orig_sft_target_audio"] = resolve_audio_path(

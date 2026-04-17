@@ -1,10 +1,10 @@
 """Reward model wrappers for WavAlign RL training.
 
-The released code expects an OpenAI-compatible multimodal chat endpoint.
+The reward client expects an OpenAI-compatible multimodal chat endpoint.
 Configure it with environment variables instead of hard-coded credentials:
 
 - `WAVALIGN_REWARD_API_KEY`
-- `WAVALIGN_REWARD_API_BASE`
+- `WAVALIGN_REWARD_API_BASE`  # full request URL, despite the historical name
 - `WAVALIGN_REWARD_MODEL`
 
 Legacy aliases are also accepted:
@@ -62,7 +62,7 @@ Score from 1 to 5 and return:
 
 
 class GPT4oRewardFunction:
-    """Backward-compatible reward wrapper around an OpenAI-style API."""
+    """Backward-compatible reward wrapper around an OpenAI-style chat API."""
 
     _PROMPTS = {
         "holistic": EVALUATION_PROMPT,

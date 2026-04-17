@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class VitaAudioRLSFTDataset(Dataset):
-    """Loads the JSONL/HF dataset schema used by the released training code."""
+    """Loads the JSONL/HF dataset schema used by this training pipeline."""
 
     def __init__(
         self,

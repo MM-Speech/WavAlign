@@ -10,9 +10,10 @@ Goal:
 - Still run one separate forward on the reference model for KL (RL only).
 
 Notes:
-- Preserves full SFT preprocessing (history text, audio question, text+audio answer),
+- Handles history text, audio question, and text+audio answer construction,
   including discrete/contiguous audio injection and audio_indices construction.
-  Focuses on reducing the duplicate forward on the policy model while matching behavior.
+- Focuses on reducing the duplicate forward on the policy model while keeping the
+  fused path behaviorally close to the standard trainer path.
 
 Usage:
 - Import and use VitaAudioRLSFTTrainerFused instead of the clean trainer in your launcher
@@ -51,11 +52,11 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
         if return_outputs:
             raise ValueError("The VitaAudioRLSFTTrainerFused does not support returning outputs")
 
-        # 1) Build RL generated sequences and metadata (copied/adapted from clean _compute_grpo_loss)
+        # 1) Build RL generated sequences and metadata
         rl_context = self._build_rl_context(model, inputs)
 
-        # 2) Build SFT sequences (text-only) and labels for fused pass
-        sft_context = self._build_sft_context_text_only(model, inputs)
+        # 2) Build SFT sequences and labels for the fused pass
+        sft_context = self._build_sft_context(model, inputs)
 
         # If no RL rows and no SFT rows, return zero
         if rl_context.total_rows == 0 and sft_context.total_rows == 0:
@@ -72,7 +73,7 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
             "attention_mask": comb["attention_mask"],
             "use_cache": False,
         }
-        # Ensure labels are passed to preserve original VITA-Audio behavior with labels
+        # Pass labels so the model follows its label-aware forward path
         if "labels" in comb:
             model_kwargs["labels"] = comb["labels"]
         if "audios" in comb:
@@ -308,7 +309,7 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
 
         return ctx
 
-    def _build_sft_context_text_only(self, model: PreTrainedModel, inputs) -> _SFTContext:
+    def _build_sft_context(self, model: PreTrainedModel, inputs) -> _SFTContext:
         """Build full SFT sequences and labels for fused forward, mirroring clean implementation.
         Handles history as text, current question possibly as audio, and answer as text+audio.
         Supports discrete and contiguous audio injection with audio_indices construction.
@@ -413,7 +414,7 @@ class VitaAudioRLSFTTrainerFused(VitaAudioRLSFTTrainer):
                         content_input_id = self._apply_text_audio_interval(content_input_id, AUD_START_ID, AUD_END_ID)
                     _input_id = IM_START_IDS + ASSISTANT_IDS + nl_tokens + content_input_id + IM_END_IDS + nl_tokens
                     # Supervise assistant content INCLUDING IM_END and following newline,
-                    # matching original VITA-Audio SFT behavior.
+                    # matching the trainer's SFT supervision behavior.
                     _target = (
                         [IGNORE_TOKEN_ID] * len(IM_START_IDS) +
                         [IGNORE_TOKEN_ID] * len(ASSISTANT_IDS) +

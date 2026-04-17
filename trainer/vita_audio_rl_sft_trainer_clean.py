@@ -57,8 +57,10 @@ logger = logging.getLogger(__name__)
 
 class VitaAudioRLSFTTrainer(Trainer):
     """
-    Clean RL+SFT Trainer for VITA-Audio models
-    Maintains exact consistency with original GRPO logic, adds SFT capability
+    RL+SFT trainer for VITA-Audio models.
+
+    This implementation includes multimodal preprocessing, GRPO-based RL,
+    SFT supervision, and training utilities used by this repository.
     """
     
     def __init__(
@@ -138,7 +140,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         if peft_config is not None:
             model = get_peft_model(model, peft_config)
 
-        # Setup reference model for KL regularization (COPIED FROM ORIGINAL)
+        # Setup reference model for KL regularization.
         self.ref_model = None
         if args.beta > 0:
             if is_deepspeed_zero3_enabled():
@@ -159,7 +161,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         self.audio_tokenizer = audio_tokenizer
         self.audio_tokenizer_type = audio_tokenizer_type
 
-        # Setup text tokenizer/processor with correct chat template (COPIED FROM ORIGINAL)
+        # Setup text tokenizer/processor with the expected chat template.
         if processing_class is None:
             model_path = model_id if isinstance(model, str) else model.config._name_or_path
             
@@ -192,7 +194,7 @@ class VitaAudioRLSFTTrainer(Trainer):
                 self.add_generation_prompt = True
                 self.default_system_message = []
             
-            # Luke system message (consistent with original)
+            # Luke system message used for speech-to-speech prompts.
             self.luke_system_message = [
                 {
                     "role": "system",
@@ -210,7 +212,7 @@ class VitaAudioRLSFTTrainer(Trainer):
             if processing_class.pad_token is None:
                 processing_class.pad_token = processing_class.eos_token
 
-        # Initialize reward functions - following reference pattern (COPIED FROM ORIGINAL)
+        # Initialize reward functions.
         if not isinstance(reward_funcs, list):
             reward_funcs = [reward_funcs]
         self.reward_funcs = reward_funcs
@@ -219,7 +221,7 @@ class VitaAudioRLSFTTrainer(Trainer):
                 from transformers import AutoModelForSequenceClassification
                 self.reward_funcs[i] = AutoModelForSequenceClassification.from_pretrained(rf, num_labels=1)
 
-        # Setup reward weights like reference (COPIED FROM ORIGINAL)
+        # Setup reward weights.
         self.reward_weights = torch.tensor(
             args.reward_weights if hasattr(args, 'reward_weights') and args.reward_weights else [1.0] * len(self.reward_funcs),
             dtype=torch.float32,
@@ -239,7 +241,7 @@ class VitaAudioRLSFTTrainer(Trainer):
                 rf.config.pad_token_id = tok.pad_token_id
                 self.reward_processing_classes[i] = tok
 
-        # Store config and setup generation config (COPIED FROM ORIGINAL)
+        # Store config and setup generation config.
         self.args = args
         self.processing_class = processing_class
         
@@ -296,7 +298,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         return super().get_batch_samples(epoch_iterator, num_batches)
     
     def _get_default_interval_ratio(self, variant: str) -> tuple:
-        """Get default text-audio interval ratio for different variants (COPIED FROM ORIGINAL)"""
+        """Get the default text-audio interval ratio for each model variant."""
         ratios = {
             "boost": [1, 10, 4, 10],
             "balance": [1, 4, 3, 8, 4, 10],
@@ -305,12 +307,12 @@ class VitaAudioRLSFTTrainer(Trainer):
         return ratios.get(variant, [1, 4, 3, 8, 4, 10])
     
     def _setup_generation_config(self, model):
-        """Setup generation config with VITA-Audio specific settings (COPIED FROM ORIGINAL)"""
+        """Setup generation config with VITA-Audio-specific settings."""
         try:
-            # Try to load original generation config
+                # Try to load the model's generation config
             if hasattr(model, 'generation_config') and model.generation_config is not None:
                 generation_config = copy.deepcopy(model.generation_config)
-                logger.info("Using model's original generation config")
+                logger.info("Using model's generation config")
             else:
                 # Fallback: create new generation config
                 generation_config = GenerationConfig(
@@ -363,7 +365,7 @@ class VitaAudioRLSFTTrainer(Trainer):
             )
     
     def _supports_token_type_separation(self):
-        """Check if model supports separate speech/text token KL calculation. (COPIED FROM ORIGINAL)"""
+        """Return whether the trainer computes separate speech/text token metrics."""
         return True
 
     def _generate_sequences_for_variant(
@@ -423,7 +425,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         if return_outputs:
             raise ValueError("The VitaAudioRLSFTTrainer does not support returning outputs")
         
-        # Step 1: Compute GRPO loss (exactly as original) 
+        # Step 1: Compute GRPO loss.
         grpo_loss = self._compute_grpo_loss(model, inputs)
         
         # Step 2: Compute SFT loss for samples that have answer targets
@@ -450,9 +452,9 @@ class VitaAudioRLSFTTrainer(Trainer):
     
     def _compute_grpo_loss(self, model, rl_inputs):
         """
-        Compute pure GRPO loss - EXACTLY COPIED FROM ORIGINAL TRAINER
+        Compute the GRPO loss for the RL portion of the batch.
         """
-        # Following qwenomnithinker_rl structure exactly
+        # Keep the RL flow aligned with the trainer's batch-generation layout.
         batch_losses = []
         batch_rewards_stats = defaultdict(list)
         batch_kl_stats = []
@@ -555,17 +557,17 @@ class VitaAudioRLSFTTrainer(Trainer):
                 completion_text = self.processing_class.decode(text_only_ids, skip_special_tokens=True)
                 all_completions_text.append(completion_text)
                 
-                # Store original prompt text for reward computation (use question_text field)
-                original_prompt_text = current_sample.get("question_text")
-                if not original_prompt_text:
+                # Store prompt text for reward computation (use question_text field)
+                prompt_text = current_sample.get("question_text")
+                if not prompt_text:
                     user_segments = []
                     for msg in processed_messages:
                         if msg.get("role") == "user":
                             content = msg.get("content", "")
                             if content:
                                 user_segments.append(content.replace("<|audio|>", "").strip())
-                    original_prompt_text = "\n\n".join(seg for seg in user_segments if seg) or "[audio-only prompt]"
-                all_messages_for_reward.append(original_prompt_text)
+                    prompt_text = "\n\n".join(seg for seg in user_segments if seg) or "[audio-only prompt]"
+                all_messages_for_reward.append(prompt_text)
 
                 # Record audio features/indices for this RL row
                 if audios_processed is not None and audio_indices is not None:
@@ -738,7 +740,7 @@ class VitaAudioRLSFTTrainer(Trainer):
             sample_audios = all_decoded_audios[start_idx:end_idx] if all_decoded_audios else [None] * num_generations
             sample_messages = all_messages_for_reward[start_idx:end_idx]
             
-            # Create rewards tensor following reference pattern
+            # Create the reward tensor for this sample's generations.
             rewards_f = torch.zeros(num_generations, len(self.reward_funcs), device=model.device)
             for idx, reward_func in enumerate(self.reward_funcs):
                 if isinstance(reward_func, PreTrainedModel):
@@ -758,7 +760,7 @@ class VitaAudioRLSFTTrainer(Trainer):
                     )
                     rewards_f[:, idx] = torch.tensor(reward_vals, dtype=torch.float32, device=model.device)
             
-            # Apply reward weights and sum - exactly like reference  
+            # Apply reward weights and sum the reward components.
             rewards_f *= self.reward_weights.to(model.device).unsqueeze(0)
             rewards = rewards_f.sum(dim=1)  # (G,)
             
@@ -792,7 +794,7 @@ class VitaAudioRLSFTTrainer(Trainer):
                 # Apply uniform beta weighting
                 weighted_kl = self.args.beta * per_token_kl
             
-            # GRPO per-token loss - following reference exactly
+            # Compute the GRPO per-token loss.
             per_tok_loss = torch.exp(completion_model_logps - completion_model_logps.detach()) * adv.unsqueeze(1)
             per_tok_loss = -(per_tok_loss - weighted_kl)
             
@@ -802,11 +804,11 @@ class VitaAudioRLSFTTrainer(Trainer):
             
             total_loss += sample_loss
             
-            # Collect metrics following reference pattern
+            # Collect per-sample metrics.
             comp_len = sample_completion_masks.sum(1).float().mean()
             self._metrics["completion_length"].append(self.accelerator.gather_for_metrics(comp_len).mean().item())
             
-            # Gather rewards for metrics - following reference exactly
+            # Gather rewards for metrics.
             rw_gather = self.accelerator.gather_for_metrics(rewards_f).mean(0)
             for i, rf in enumerate(self.reward_funcs):
                 nm = rf.config._name_or_path.split("/")[-1] if isinstance(rf, PreTrainedModel) else rf.__name__
@@ -1055,11 +1057,11 @@ class VitaAudioRLSFTTrainer(Trainer):
             return torch.tensor(0.0, device=model.device, requires_grad=True)
     
     def _apply_text_audio_interval(self, content_input_id, AUD_START_ID, AUD_END_ID):
-        """Apply text-audio interval following VITA-Audio logic exactly"""
+        """Apply the configured text-audio interval pattern to assistant content."""
         if not self.text_audio_interval_ratio:
             return content_input_id
         
-        # Use the exact same logic as the original text_audio_interval function
+        # Apply the configured text/audio chunking logic.
         text_nums = list(self.text_audio_interval_ratio[::2])  # [1, 3, 4]
         audio_nums = list(self.text_audio_interval_ratio[1::2])  # [4, 8, 10]
         
@@ -1091,7 +1093,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         
         # Chunk audio tokens according to audio_nums
         audio_tokens_chunks = []
-        audio_nums_copy = audio_nums.copy()  # Don't modify original
+        audio_nums_copy = audio_nums.copy()  # Avoid mutating the source list
         while len(audio_tokens) > 0:
             if len(audio_nums_copy) > 1:
                 audio_num = audio_nums_copy.pop(0)
@@ -1103,7 +1105,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         
         # Chunk text tokens according to text_nums
         text_tokens_chunks = []
-        text_nums_copy = text_nums.copy()  # Don't modify original
+        text_nums_copy = text_nums.copy()  # Avoid mutating the source list
         while len(text_tokens) > 0:
             if len(text_nums_copy) > 1:
                 text_num = text_nums_copy.pop(0)
@@ -1129,10 +1131,9 @@ class VitaAudioRLSFTTrainer(Trainer):
         
         return interval_input_ids
 
-    # ALL METHODS BELOW ARE COPIED EXACTLY FROM ORIGINAL TRAINER
     def _get_per_token_logps(self, model, input_ids, attention_mask, prompt_inputs_dict, return_logits=False):
         """
-        Compute per-token log probabilities from VITA-Audio model (COPIED FROM ORIGINAL)
+        Compute per-token log probabilities from the VITA-Audio model.
         """
         # For VITA-Audio models, we need to handle both text and audio inputs
         target_ids = input_ids[:, 1:]  # Shift for next token prediction
@@ -1189,7 +1190,7 @@ class VitaAudioRLSFTTrainer(Trainer):
     
     def _get_token_type_masks(self, completion_ids, completion_masks):
         """
-        Get masks for speech tokens vs text tokens in VITA-Audio model. (COPIED FROM ORIGINAL)
+        Get masks for speech tokens vs text tokens in the VITA-Audio vocabulary.
         """
         # Get speech token offset from model config
         speech_token_offset = self.processing_class.convert_tokens_to_ids("<|audio_0|>")
@@ -1210,7 +1211,7 @@ class VitaAudioRLSFTTrainer(Trainer):
     
     def _compute_entropy_by_token_type(self, logits, completion_ids, completion_masks):
         """
-        Compute entropy separately for speech and text tokens. (COPIED FROM ORIGINAL)
+        Compute entropy separately for speech and text tokens.
         NOTE: This should be called within torch.no_grad() context.
         """
         speech_token_mask, text_token_mask = self._get_token_type_masks(completion_ids, completion_masks)
@@ -1257,13 +1258,13 @@ class VitaAudioRLSFTTrainer(Trainer):
         if not system_message:
             return messages
 
-        # Prepend exactly one system message
+        # Prepend a single system message
         return system_message + messages
     
     def _process_discrete_audio_tokens(self, messages: list, audios: list) -> list:
         """
-        Process discrete audio tokens into message content. (COPIED FROM ORIGINAL)
-        Following the official inference_sts.py format.
+        Process discrete audio placeholders into inline token sequences.
+        This follows the repository's `inference_sts.py` message format.
         """
         if not audios or not self.audio_tokenizer:
             return messages
@@ -1295,7 +1296,7 @@ class VitaAudioRLSFTTrainer(Trainer):
         
         return processed_messages
 
-    # ---------------- logging override (COPIED FROM ORIGINAL) -----------------
+    # ---------------- logging override -----------------
     def log(self, logs: Dict[str, float], start_time: float | None = None) -> None:
         avg = {k: sum(v) / max(len(v), 1) for k, v in self._metrics.items()}
         logs.update(avg)
